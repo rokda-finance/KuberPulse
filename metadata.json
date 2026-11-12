@@ -1,0 +1,6 @@
+{
+  "name": "KuberPulse - Indian Wealth & Portfolio Tracker",
+  "description": "Unified multi-broker wealth manager for Indian retail investors with live Zerodha Kite Connect sync, CAMS/KFintech CAS and Groww/Upstox imports, family portfolio consolidation, and asset analytics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

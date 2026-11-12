@@ -1,0 +1,321 @@
+// Prisma Database Schema for KuberPulse - Unified Indian Wealth Management
+// Designed for PostgreSQL / Supabase with relational ledger and multi-family support
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum AssetType {
+  EQUITY
+  MUTUAL_FUND
+  DEBT_FD
+  PPF
+  EPF
+  GOLD_SGB
+  REAL_ESTATE
+  CASH_MARGIN
+}
+
+enum MarketCap {
+  LARGE_CAP
+  MID_CAP
+  SMALL_CAP
+  MICRO_CAP
+  GOVERNMENT_SOVEREIGN
+  NOT_APPLICABLE
+}
+
+enum BrokerPlatform {
+  ZERODHA_KITE
+  ZERODHA_CONSOLE
+  GROWW
+  UPSTOX
+  ANGEL_ONE
+  KUVERA
+  CAMS_CAS
+  KFINTECH_CAS
+  MANUAL_BANK_FD
+  MANUAL_GOVT_SCHEME
+  MANUAL_PHYSICAL
+}
+
+enum FamilyRole {
+  SELF
+  SPOUSE
+  PARENT
+  CHILD
+  HUF
+  OTHER
+}
+
+enum SyncStatus {
+  ACTIVE
+  EXPIRED
+  DISCONNECTED
+  ERROR
+}
+
+enum BatchStatus {
+  SUCCESS
+  ROLLED_BACK
+  FAILED
+}
+
+// --------------------------------------------------------
+// 1. User & Family Multi-Profile
+// --------------------------------------------------------
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  name            String
+  panNumber       String?           // Masked Indian PAN for tax P&L reconciliation
+  currency        String            @default("INR")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  familyMembers   FamilyMember[]
+  brokerConnections BrokerConnection[]
+  holdings        Holding[]
+  transactions    Transaction[]
+  importLogs      ImportLog[]
+  manualAssets    ManualAsset[]
+  financialGoals  FinancialGoal[]
+  cashflows       CashflowRecord[]
+
+  @@map("users")
+}
+
+model FamilyMember {
+  id              String         @id @default(uuid())
+  userId          String
+  name            String
+  relationship    FamilyRole     @default(SELF)
+  panNumber       String?        // Allows multi-PAN family tax segregation
+  colorHex        String         @default("#10b981")
+  createdAt       DateTime       @default(now())
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings        Holding[]
+  manualAssets    ManualAsset[]
+  transactions    Transaction[]
+
+  @@index([userId])
+  @@map("family_members")
+}
+
+// --------------------------------------------------------
+// 2. Broker Connection (Kite Connect OAuth & Encrypted Tokens)
+// --------------------------------------------------------
+model BrokerConnection {
+  id              String         @id @default(uuid())
+  userId          String
+  broker          BrokerPlatform @default(ZERODHA_KITE)
+  brokerClientId  String         // e.g. "AB1234" (Zerodha Client ID)
+  accountNickName String         @default("Primary Zerodha")
+  apiKeyEncrypted String?        // Encrypted at rest via AES-256-GCM
+  apiSecretEncrypted String?
+  accessTokenEncrypted String?   // Daily access token
+  publicToken     String?
+  tokenExpiresAt  DateTime?      // Daily 6:00 AM IST expiration timestamp
+  lastSyncedAt    DateTime?
+  status          SyncStatus     @default(DISCONNECTED)
+  lastErrorMsg    String?
+  availableMargin Decimal        @default(0.0) @db.Decimal(14, 2)
+  usedMargin      Decimal        @default(0.0) @db.Decimal(14, 2)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings        Holding[]
+
+  @@unique([userId, brokerClientId])
+  @@index([userId, status])
+  @@map("broker_connections")
+}
+
+// --------------------------------------------------------
+// 3. Master Asset Catalog (ISIN & Ticker Canonical Mapping)
+// --------------------------------------------------------
+model Asset {
+  id              String         @id @default(uuid())
+  isin            String         @unique // International Securities Identification Number (e.g. INE002A01018)
+  symbol          String         // e.g. "RELIANCE", "INFY", "HDFCBANK"
+  exchange        String         @default("NSE") // NSE, BSE, MCX
+  name            String         // e.g. "Reliance Industries Limited"
+  assetType       AssetType      @default(EQUITY)
+  sector          String         @default("Diversified") // IT, Banking, FMCG, Pharma, Auto, Energy
+  marketCap       MarketCap      @default(LARGE_CAP)
+  lastTradedPrice Decimal        @default(0.0) @db.Decimal(12, 2) // LTP updated via Kite quote / AMFI NAV
+  dayChange       Decimal        @default(0.0) @db.Decimal(12, 2)
+  dayChangePercent Decimal       @default(0.0) @db.Decimal(6, 2)
+  fiftyTwoWeekHigh Decimal?      @db.Decimal(12, 2)
+  fiftyTwoWeekLow  Decimal?      @db.Decimal(12, 2)
+  amfiCode        String?        // For mutual funds (e.g. "120503")
+  updatedAt       DateTime       @updatedAt
+
+  holdings        Holding[]
+  transactions    Transaction[]
+
+  @@index([symbol, exchange])
+  @@index([assetType, sector])
+  @@map("assets")
+}
+
+// --------------------------------------------------------
+// 4. Holdings Ledger (Relational Position per User, Account & Member)
+// --------------------------------------------------------
+model Holding {
+  id                  String            @id @default(uuid())
+  userId              String
+  familyMemberId      String
+  assetId             String
+  brokerConnectionId  String?
+  platform            BrokerPlatform
+  folioNumber         String?           // For mutual funds or specific demat account
+  quantity            Decimal           @db.Decimal(14, 4)
+  averageBuyPrice     Decimal           @db.Decimal(12, 2)
+  investedValue       Decimal           @db.Decimal(14, 2) // quantity * averageBuyPrice
+  currentValue        Decimal           @db.Decimal(14, 2) // quantity * asset.lastTradedPrice
+  unrealizedPnl       Decimal           @db.Decimal(14, 2)
+  unrealizedPnlPercent Decimal          @db.Decimal(8, 2)
+  importBatchId       String?
+  lastSyncedAt        DateTime          @default(now())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyMember        FamilyMember      @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+  asset               Asset             @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  brokerConnection    BrokerConnection? @relation(fields: [brokerConnectionId], references: [id], onDelete: SetNull)
+  importLog           ImportLog?        @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, familyMemberId])
+  @@index([assetId])
+  @@index([platform])
+  @@map("holdings")
+}
+
+// --------------------------------------------------------
+// 5. Transactions Ledger
+// --------------------------------------------------------
+model Transaction {
+  id              String         @id @default(uuid())
+  userId          String
+  familyMemberId  String
+  assetId         String
+  platform        BrokerPlatform
+  tradeType       String         // "BUY", "SELL", "DIVIDEND", "SIP"
+  tradeDate       DateTime
+  quantity        Decimal        @db.Decimal(14, 4)
+  price           Decimal        @db.Decimal(12, 2)
+  totalAmount     Decimal        @db.Decimal(14, 2)
+  orderId         String?
+  importBatchId   String?
+  createdAt       DateTime       @default(now())
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyMember    FamilyMember   @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+  asset           Asset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  importLog       ImportLog?     @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, tradeDate])
+  @@map("transactions")
+}
+
+// --------------------------------------------------------
+// 6. Manual Non-Broker Assets (FD, PPF, EPF, Gold, Real Estate)
+// --------------------------------------------------------
+model ManualAsset {
+  id              String         @id @default(uuid())
+  userId          String
+  familyMemberId  String
+  assetType       AssetType      // DEBT_FD, PPF, EPF, GOLD_SGB, REAL_ESTATE
+  name            String         // e.g. "HDFC Bank 3-Year Cumulative FD"
+  institutionName String         // "HDFC Bank", "SBI", "EPFO", "India Post"
+  accountNumber   String?        // Masked
+  investedAmount  Decimal        @db.Decimal(14, 2)
+  currentValue    Decimal        @db.Decimal(14, 2)
+  interestRate    Decimal?       @db.Decimal(5, 2) // e.g. 7.25%
+  startDate       DateTime?
+  maturityDate    DateTime?
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  familyMember    FamilyMember   @relation(fields: [familyMemberId], references: [id], onDelete: Cascade)
+
+  @@index([userId, assetType])
+  @@map("manual_assets")
+}
+
+// --------------------------------------------------------
+// 7. Import Audit & Rollback Logs
+// --------------------------------------------------------
+model ImportLog {
+  id              String         @id @default(uuid())
+  userId          String
+  fileName        String
+  fileSize        Int
+  platform        BrokerPlatform
+  fileType        String         // "CSV", "XLSX", "CAS_PDF"
+  recordCount     Int
+  status          BatchStatus    @default(SUCCESS)
+  metadataJson    String?        // Stored snapshot for clean rollback
+  createdAt       DateTime       @default(now())
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  holdings        Holding[]
+  transactions    Transaction[]
+
+  @@index([userId, createdAt])
+  @@map("import_logs")
+}
+
+// --------------------------------------------------------
+// 8. Goal Planner
+// --------------------------------------------------------
+model FinancialGoal {
+  id              String         @id @default(uuid())
+  userId          String
+  title           String         // "Retirement Corpus", "Home Down Payment"
+  category        String         // "RETIREMENT", "HOUSE", "EDUCATION", "EMERGENCY"
+  targetAmount    Decimal        @db.Decimal(14, 2)
+  currentSaved    Decimal        @default(0.0) @db.Decimal(14, 2)
+  targetDate      DateTime
+  linkedAssetIds  String[]       // Array of asset ISINs or holding IDs contributing to this goal
+  monthlySipTarget Decimal?      @db.Decimal(10, 2)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("financial_goals")
+}
+
+// --------------------------------------------------------
+// 9. Monthly Cash Flow & Expense Tracker
+// --------------------------------------------------------
+model CashflowRecord {
+  id              String         @id @default(uuid())
+  userId          String
+  monthYear       String         // e.g. "2026-11"
+  monthlyIncome   Decimal        @db.Decimal(14, 2)
+  monthlyExpense  Decimal        @db.Decimal(14, 2)
+  monthlySavings  Decimal        @db.Decimal(14, 2)
+  savingsRate     Decimal        @db.Decimal(5, 2) // % e.g. 48.5%
+  breakdownJson   String?        // Detailed categorized spends (SIPs, Rent, EMI, Food)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, monthYear])
+  @@map("cashflow_records")
+}
