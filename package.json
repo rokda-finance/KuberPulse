@@ -2,6 +2,7 @@
   "name": "kuberpulse",
   "private": true,
   "version": "1.0.0-alpha.1",
+  "author": "KuberPulse <hello.rokdaapp@gmail.com>",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
