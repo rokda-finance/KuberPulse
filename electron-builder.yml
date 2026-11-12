@@ -20,6 +20,8 @@ win:
       arch:
         - x64
   artifactName: KuberPulse-Setup-${version}-${arch}.${ext}
+portable:
+  artifactName: KuberPulse-Portable-${version}-${arch}.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true

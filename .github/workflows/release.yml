@@ -20,15 +20,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Typecheck
         run: npm run lint
@@ -45,13 +45,13 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: linux
-            script: npm run dist:linux
+            script: npm run dist:linux -- --publish never
           - os: windows-latest
             platform: win
-            script: npm run dist:win
+            script: npm run dist:win -- --publish never
           - os: macos-latest
             platform: mac
-            script: npm run dist:mac
+            script: npm run dist:mac -- --publish never
 
     runs-on: ${{ matrix.os }}
     env:
@@ -59,21 +59,21 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --no-audit --no-fund
 
       - name: Build ${{ matrix.platform }} installer
         run: ${{ matrix.script }}
 
       - name: Upload ${{ matrix.platform }} release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kuberpulse-${{ matrix.platform }}
           path: |
@@ -95,15 +95,15 @@ jobs:
       contents: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Download installer artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: KuberPulse ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}

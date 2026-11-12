@@ -159,7 +159,7 @@ npm run dist:linux   # Linux (.AppImage & .deb)
 
 ## GitHub Alpha Releases (`v1.0.0-alpha.1`)
 
-KuberPulse includes a pre-configured GitHub Actions release pipeline (`.github/workflows/release.yml`) that verifies TypeScript + bundle compilation and automatically builds Windows (`.exe`), macOS (`.dmg`/`.zip`), and Linux (`.AppImage`/`.deb`) installers whenever a `v*` tag is pushed:
+KuberPulse includes a pre-configured **Node 24** GitHub Actions release pipeline (`.github/workflows/release.yml`) that runs `npm install`, `npm run lint`, and `npm run build:desktop` before building Windows (`.exe` NSIS Setup & Portable), macOS (`.dmg`/`.zip`), and Linux (`.AppImage`/`.deb`) installers whenever a `v*` tag is pushed:
 
 ```bash
 # Link your GitHub repository and push the main branch + v1.0.0-alpha.1 release tag
