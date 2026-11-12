@@ -16,25 +16,45 @@ Searchable and sortable holdings table that automatically merges duplicate secur
 
 ![Multi-Broker Holdings Breakdown](./docs/screenshots/holdings-multi-broker.png)
 
-### 3. Smart Import Engine (CSV / Excel / CAMS CAS)
-Drag-and-drop import wizard supporting **Zerodha Console**, **Groww**, **Upstox**, and **CAMS / KFintech CAS** exports with instant file previews, family member PAN assignment, downloadable test samples, and 1-click batch rollbacks.
+### 3. Non-Broker Assets (FDs, PPF, Gold & Real Estate)
+Dedicated ledger for fixed deposits, Public Provident Fund (PPF), RBI Sovereign Gold Bonds (SGBs), and real estate with institution metadata, annual interest rates, and cost vs. current valuation.
+
+![Non-Broker Assets Ledger](./docs/screenshots/manual-assets.png)
+
+### 4. Smart Import Engine (CSV / Excel / CAMS CAS)
+Drag-and-drop import wizard supporting **Zerodha Console**, **Groww**, **Upstox**, and **CAMS / KFintech CAS** exports with instant file previews, family member PAN assignment, and downloadable test samples.
 
 ![Smart Import Wizard](./docs/screenshots/smart-import-wizard.png)
 
-### 4. Zerodha Kite Connect v3 Integration
+### 5. Import Audit Logs & 1-Click Batch Rollback
+Track every uploaded spreadsheet batch with owner tagging, record counts, and instant 1-click **Undo / Rollback** to safely revert faulty imports without corrupting the historical ledger.
+
+![Import Audit and Rollback Logs](./docs/screenshots/import-history-rollback.png)
+
+### 6. Zerodha Kite Connect v3 Integration
 Manage Kite Connect API credentials, inspect available cash and utilised SPAN margins, handle daily 06:00 AM IST token expirations gracefully, and trigger live portfolio syncs.
 
 ![Zerodha Kite Connect Modal](./docs/screenshots/kite-connect-modal.png)
 
-### 5. Goal-Based Wealth Planning
+### 7. Goal-Based Wealth Planning
 Track long-term milestones such as Financial Independence (FIRE), Home Down Payment, Children's Education, and Emergency Runway with corpus progress bars, shortfall calculations, and recommended monthly SIPs.
 
 ![Goal Planner](./docs/screenshots/goal-planner.png)
 
-### 6. Cash Flow & Savings Rate Tracker
+### 8. Cash Flow & Savings Rate Tracker
 Log monthly inflows and categorized outflows (Mutual Fund SIPs, Rent/EMI, Groceries, Utilities) to track net investible surplus and savings velocity.
 
 ![Cash Flow Tracker](./docs/screenshots/cashflow-tracker.png)
+
+### 9. Multi-PAN Family Sub-Profiles
+Add family members (`Self`, `Spouse`, `Parent`, `Child`, `HUF`) with distinct PAN tax identities and color-coded avatars to filter or consolidate household wealth.
+
+![Add Family Member Modal](./docs/screenshots/family-member-modal.png)
+
+### 10. PostgreSQL Prisma Schema & Architecture Viewer
+Inspect and copy the relational `prisma/schema.prisma` blueprint and ledger deduplication specifications directly inside the app.
+
+![Prisma Schema and Architecture Modal](./docs/screenshots/schema-architecture-modal.png)
 
 ---
 
