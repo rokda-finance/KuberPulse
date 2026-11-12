@@ -1,6 +1,8 @@
 # KuberPulse — Indian Wealth & Multi-Broker Portfolio Tracker
 
-**KuberPulse** is a unified personal finance and wealth management web application tailored for Indian retail investors and families. It consolidates investments across multiple brokers, Mutual Fund RTAs, and non-broker physical/sovereign assets into a single relational ledger with Indian numbering (`₹` en-IN formatting), ISIN-based deduplication, and multi-PAN family tagging.
+**Current Release:** `v1.0.0-alpha.1` (First Alpha Release) · See [CHANGELOG.md](CHANGELOG.md)
+
+**KuberPulse** is a unified personal finance and wealth management web & desktop application tailored for Indian retail investors and families. It consolidates investments across multiple brokers, Mutual Fund RTAs, and non-broker physical/sovereign assets into a single ledger with Indian numbering (`₹` en-IN formatting), ISIN-based deduplication, multi-PAN family tagging, persistent Express storage, and native Electron installers.
 
 ---
 
@@ -155,9 +157,26 @@ npm run dist:linux   # Linux (.AppImage & .deb)
 
 ---
 
+## GitHub Alpha Releases (`v1.0.0-alpha.1`)
+
+KuberPulse includes a pre-configured GitHub Actions release pipeline (`.github/workflows/release.yml`) that verifies TypeScript + bundle compilation and automatically builds Windows (`.exe`), macOS (`.dmg`/`.zip`), and Linux (`.AppImage`/`.deb`) installers whenever a `v*` tag is pushed:
+
+```bash
+# Link your GitHub repository and push the main branch + v1.0.0-alpha.1 release tag
+git remote add origin https://github.com/<your-username>/kuberpulse.git
+git push -u origin main --follow-tags
+```
+
+Tags containing `-alpha`, `-beta`, or `-rc` automatically publish as a **GitHub Pre-release** with release notes sourced from `CHANGELOG.md` and attached cross-platform desktop installers.
+
+---
+
 ## Project Structure
 
 ```text
+├── .github/
+│   └── workflows/
+│       └── release.yml                # Automated CI verification & Electron GitHub Release workflow
 ├── build/
 │   └── icon.svg                       # Desktop application icon
 ├── docs/
@@ -194,6 +213,7 @@ npm run dist:linux   # Linux (.AppImage & .deb)
 │   │   └── index.ts                   # Core TypeScript interfaces
 │   ├── App.tsx
 │   └── main.tsx
+├── CHANGELOG.md                       # Release notes & Alpha status
 ├── electron-builder.yml               # Cross-platform installer config (NSIS, DMG, AppImage)
 ├── server.ts                          # Express + Vite unified backend entrypoint
 └── package.json

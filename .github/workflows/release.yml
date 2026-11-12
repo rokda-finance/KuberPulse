@@ -1,0 +1,113 @@
+name: Release KuberPulse
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Optional release tag label (e.g. v1.0.0-alpha.1)'
+        required: false
+        default: 'v1.0.0-alpha.1'
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    name: Typecheck & Bundle Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Typecheck
+        run: npm run lint
+
+      - name: Build Frontend & Backend Bundle
+        run: npm run build:desktop
+
+  build-installers:
+    name: Build Desktop (${{ matrix.os }})
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            script: npm run dist:linux
+          - os: windows-latest
+            platform: win
+            script: npm run dist:win
+          - os: macos-latest
+            platform: mac
+            script: npm run dist:mac
+
+    runs-on: ${{ matrix.os }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build ${{ matrix.platform }} installer
+        run: ${{ matrix.script }}
+
+      - name: Upload ${{ matrix.platform }} release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: kuberpulse-${{ matrix.platform }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.AppImage
+            release/*.deb
+            release/*.blockmap
+            release/latest*.yml
+          if-no-files-found: error
+
+  github-release:
+    name: Publish GitHub Release
+    needs: build-installers
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: KuberPulse ${{ github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
+          body_path: CHANGELOG.md
+          generate_release_notes: true
+          files: |
+            artifacts/**/*

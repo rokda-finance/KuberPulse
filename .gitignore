@@ -3,8 +3,11 @@ dist/
 dist-server/
 release/
 coverage/
+.aistudio/
+.kuberpulse/
 .DS_Store
 *.log
 *.tmp
+*.tsbuildinfo
 .env*
 !.env.example
