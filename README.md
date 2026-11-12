@@ -118,11 +118,11 @@ Inspect and copy the relational `prisma/schema.prisma` blueprint and ledger dedu
 npm install
 ```
 
-### 2. Run Development Server
+### 2. Run Development Server (Full-Stack Express + Vite)
 ```bash
 npm run dev
 ```
-The app runs at `http://localhost:3000`.
+The app runs at `http://localhost:3000` with persistent local ledger storage (`~/.kuberpulse/kuberpulse-ledger.json`) and AES-256-GCM encrypted Zerodha Kite credential storage.
 
 ### 3. Build for Production
 ```bash
@@ -136,13 +136,41 @@ npm run lint
 
 ---
 
+## Self-Hosted Desktop Auto-Installer (Windows / macOS / Linux)
+
+KuberPulse includes an **Electron** wrapper (`electron/main.cjs`) and **`electron-builder`** configuration (`electron-builder.yml`) that bundles the React UI, local Express server, and encrypted local ledger into native double-click installers:
+
+```bash
+# 1. Install dependencies (includes electron & electron-builder)
+npm install
+
+# 2. Build native installer for your OS (output generated in ./release/)
+npm run dist:win     # Windows NSIS Setup (.exe) & Portable .exe
+npm run dist:mac     # macOS Universal (.dmg & .zip)
+npm run dist:linux   # Linux (.AppImage & .deb)
+```
+
+* **Local Data Persistence**: Desktop builds automatically persist all holdings, imports, goals, cash flows, and encrypted Kite tokens inside your OS application data folder (`app.getPath('userData')`), accessible anytime from **KuberPulse → Open Local Data Folder**.
+* **Kite OAuth Compatibility**: The embedded server prefers `http://localhost:3000` so Zerodha Kite Connect redirect URLs work locally out of the box.
+
+---
+
 ## Project Structure
 
 ```text
-├── prisma/
-│   └── schema.prisma                  # PostgreSQL relational schema
+├── build/
+│   └── icon.svg                       # Desktop application icon
 ├── docs/
 │   └── screenshots/                   # Application screenshots
+├── electron/
+│   ├── main.cjs                       # Electron main window & embedded server launcher
+│   └── preload.cjs                    # Secure contextBridge preload script
+├── prisma/
+│   └── schema.prisma                  # PostgreSQL relational schema
+├── server/
+│   ├── crypto.ts                      # AES-256-GCM local encryption & Kite checksums
+│   ├── kiteApi.ts                     # Zerodha Kite Connect v3 REST token & holdings sync
+│   └── storage.ts                     # Atomic JSON ledger persistence
 ├── src/
 │   ├── components/
 │   │   ├── architecture/              # Prisma schema & architecture viewer modal
@@ -166,5 +194,7 @@ npm run lint
 │   │   └── index.ts                   # Core TypeScript interfaces
 │   ├── App.tsx
 │   └── main.tsx
+├── electron-builder.yml               # Cross-platform installer config (NSIS, DMG, AppImage)
+├── server.ts                          # Express + Vite unified backend entrypoint
 └── package.json
 ```

@@ -33,15 +33,21 @@ export const KiteConnectModal: React.FC<KiteConnectModalProps> = ({
   onTriggerSync,
   onSimulateDemoSync,
 }) => {
-  const [activeTab, setActiveTab] = useState<'status' | 'credentials'>('status');
+  const urlReqToken =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('request_token') || ''
+      : '';
+  const [activeTab, setActiveTab] = useState<'status' | 'credentials'>(
+    urlReqToken ? 'credentials' : 'status'
+  );
   const [apiKey, setApiKey] = useState(kiteStatus.apiKey || '');
   const [apiSecret, setApiSecret] = useState('');
-  const [requestToken, setRequestToken] = useState('');
+  const [requestToken, setRequestToken] = useState(urlReqToken);
 
   if (!isOpen) return null;
 
   const handleOpenKiteOAuth = () => {
-    const url = getKiteLoginUrl(apiKey || 'kite_live_prod_9921', window.location.href);
+    const url = getKiteLoginUrl(apiKey || 'kite_live_prod_9921', window.location.origin);
     window.open(url, '_blank');
   };
 

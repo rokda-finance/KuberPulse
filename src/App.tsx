@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { UnifiedDashboard } from './components/dashboard/UnifiedDashboard';
 import { HoldingsTable } from './components/holdings/HoldingsTable';
@@ -37,7 +37,7 @@ import {
 import { consolidateHoldings, computePortfolioSummary } from './lib/financialMath';
 import { syncKitePortfolio } from './services/kiteConnect';
 import { ParsedHoldingRecord } from './services/importParser';
-import { CheckCircle2, RotateCcw, AlertCircle, Info } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   // Family & Member Selection
@@ -88,6 +88,40 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  // Hydrate persistent local ledger from backend server on mount
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const resp = await fetch('/api/state');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (cancelled) return;
+        if (Array.isArray(data.familyMembers)) setFamilyMembers(data.familyMembers);
+        if (Array.isArray(data.holdings)) setHoldings(data.holdings);
+        if (Array.isArray(data.manualAssets)) setManualAssets(data.manualAssets);
+        if (Array.isArray(data.goals)) setGoals(data.goals);
+        if (Array.isArray(data.cashflows)) setCashflows(data.cashflows);
+        if (Array.isArray(data.importBatches)) setImportBatches(data.importBatches);
+        if (data.kiteStatus) setKiteStatus(data.kiteStatus);
+      } catch {
+        // Fallback gracefully to seeded sample state in static-only previews
+      }
+    })();
+
+    // Auto-detect Zerodha Kite OAuth redirect callback (?request_token=...&status=success)
+    const params = new URLSearchParams(window.location.search);
+    const reqToken = params.get('request_token');
+    if (reqToken) {
+      setIsKiteModalOpen(true);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Filtered holdings based on selected family member
   const activeHoldings = useMemo(() => {
     if (selectedMemberId === 'ALL') return holdings;
@@ -112,22 +146,49 @@ export default function App() {
     return computePortfolioSummary(activeHoldings, activeManualAssets, cash, familyMembers);
   }, [activeHoldings, activeManualAssets, kiteStatus.availableCash, familyMembers, selectedMemberId]);
 
-  // 1. Kite Live Sync Handler
-  const handleSyncKite = async () => {
+  // 1. Kite Live Sync Handler (persists encrypted tokens & holdings on backend)
+  const handleSyncKite = async (credentials?: {
+    apiKey: string;
+    apiSecret: string;
+    requestToken?: string;
+  }) => {
     setIsSyncingKite(true);
     try {
-      const res = await syncKitePortfolio({ apiKey: kiteStatus.apiKey }, true);
-      setKiteStatus(res.accountStatus);
-
-      // Merge updated live prices into Kite holdings
-      setHoldings((prev) => {
-        const nonKiteHoldings = prev.filter((h) => h.platform !== 'ZERODHA_KITE');
-        return [...res.holdings, ...nonKiteHoldings];
+      const resp = await fetch('/api/kite/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials || {}),
       });
 
-      showToast('Zerodha Kite Connect live quotes and margins synced successfully.');
-    } catch (err: any) {
-      showToast('Kite Sync failed: ' + (err.message || 'Unknown error'));
+      if (resp.ok) {
+        const data = await resp.json();
+        setKiteStatus(data.accountStatus);
+        setHoldings((prev) => {
+          const nonKiteHoldings = prev.filter((h) => h.platform !== 'ZERODHA_KITE');
+          return [...data.holdings, ...nonKiteHoldings];
+        });
+        showToast(
+          data.mode === 'LIVE_API'
+            ? 'Zerodha Kite Connect live holdings & margins synced.'
+            : 'Zerodha Kite Connect sandbox quotes and margins synced.'
+        );
+      } else {
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(errBody.error || 'Kite server sync failed');
+      }
+    } catch {
+      // Static preview fallback
+      try {
+        const res = await syncKitePortfolio({ apiKey: credentials?.apiKey || kiteStatus.apiKey }, true);
+        setKiteStatus(res.accountStatus);
+        setHoldings((prev) => {
+          const nonKiteHoldings = prev.filter((h) => h.platform !== 'ZERODHA_KITE');
+          return [...res.holdings, ...nonKiteHoldings];
+        });
+        showToast('Zerodha Kite Connect quotes and margins synced.');
+      } catch (err: any) {
+        showToast('Kite Sync failed: ' + (err.message || 'Unknown error'));
+      }
     } finally {
       setIsSyncingKite(false);
     }
@@ -180,8 +241,6 @@ export default function App() {
       };
     });
 
-    setHoldings((prev) => [...prev, ...newHoldings]);
-
     const newBatch: ImportBatch = {
       id: batchId,
       fileName,
@@ -194,7 +253,15 @@ export default function App() {
       familyMemberId: targetMemberId,
     };
 
+    setHoldings((prev) => [...prev, ...newHoldings]);
     setImportBatches((prev) => [newBatch, ...prev]);
+
+    fetch('/api/holdings/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holdings: newHoldings, batch: newBatch }),
+    }).catch(() => {});
+
     showToast(`Successfully imported ${records.length} assets from ${fileName}`);
   };
 
@@ -203,33 +270,47 @@ export default function App() {
     const targetBatch = importBatches.find((b) => b.id === batchId);
     if (!targetBatch) return;
 
-    // Remove holdings tied to this batch
     setHoldings((prev) => prev.filter((h) => h.importBatchId !== batchId));
-
-    // Update batch status
     setImportBatches((prev) =>
       prev.map((b) => (b.id === batchId ? { ...b, status: 'ROLLED_BACK' as const } : b))
     );
+
+    fetch(`/api/import-batches/${encodeURIComponent(batchId)}/rollback`, {
+      method: 'POST',
+    }).catch(() => {});
 
     showToast(`Batch "${targetBatch.fileName}" has been rolled back. Ledger restored.`);
   };
 
   // 4. Manual Asset CRUD
   const handleAddManualAsset = (newAsset: Omit<ManualAsset, 'id'>) => {
-    const id = `m_${Date.now()}`;
-    setManualAssets((prev) => [{ ...newAsset, id }, ...prev]);
+    const created: ManualAsset = { ...newAsset, id: `m_${Date.now()}` };
+    setManualAssets((prev) => [created, ...prev]);
+    fetch('/api/manual-assets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(created),
+    }).catch(() => {});
     showToast(`Added ${newAsset.name} to wealth ledger.`);
   };
 
   const handleDeleteManualAsset = (id: string) => {
     setManualAssets((prev) => prev.filter((m) => m.id !== id));
+    fetch(`/api/manual-assets/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
     showToast('Non-broker asset removed from portfolio.');
   };
 
   // 5. Goals CRUD
   const handleAddGoal = (newGoal: Omit<FinancialGoal, 'id'>) => {
-    const id = `g_${Date.now()}`;
-    setGoals((prev) => [...prev, { ...newGoal, id }]);
+    const created: FinancialGoal = { ...newGoal, id: `g_${Date.now()}` };
+    setGoals((prev) => [...prev, created]);
+    fetch('/api/goals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(created),
+    }).catch(() => {});
     showToast(`Goal "${newGoal.title}" created.`);
   };
 
@@ -239,13 +320,23 @@ export default function App() {
       newCashflow,
       ...prev.filter((c) => c.monthYear !== newCashflow.monthYear),
     ]);
+    fetch('/api/cashflows', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newCashflow),
+    }).catch(() => {});
     showToast(`Cash flow recorded for ${newCashflow.monthYear}`);
   };
 
   // 7. Add Family Member
   const handleAddFamilyMember = (newMember: Omit<FamilyMember, 'id'>) => {
-    const id = `fam_${Date.now()}`;
-    setFamilyMembers((prev) => [...prev, { ...newMember, id }]);
+    const created: FamilyMember = { ...newMember, id: `fam_${Date.now()}` };
+    setFamilyMembers((prev) => [...prev, created]);
+    fetch('/api/family-members', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(created),
+    }).catch(() => {});
     showToast(`Added family member: ${newMember.name}`);
   };
 

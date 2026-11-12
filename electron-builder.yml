@@ -1,0 +1,48 @@
+appId: com.kuberpulse.desktop
+productName: KuberPulse
+copyright: Copyright © 2026 KuberPulse
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - dist-server/**/*
+  - electron/**/*
+  - package.json
+asar: true
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+    - target: portable
+      arch:
+        - x64
+  artifactName: KuberPulse-Setup-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: KuberPulse
+mac:
+  category: public.app-category.finance
+  target:
+    - target: dmg
+      arch:
+        - universal
+    - target: zip
+      arch:
+        - universal
+  artifactName: KuberPulse-${version}-${arch}.${ext}
+linux:
+  category: Finance
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  artifactName: KuberPulse-${version}-${arch}.${ext}
